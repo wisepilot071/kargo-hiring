@@ -21,3 +21,5 @@ data/applications/*.doc
 data/applications/*.txt
 !data/applications/roles.json
 data/generated/
+gh_auth_*.log
+gh_auth_pid.txt

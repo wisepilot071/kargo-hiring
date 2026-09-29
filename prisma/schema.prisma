@@ -3,13 +3,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled connection (pgbouncer, port 6543) — used at runtime
+  directUrl = env("DIRECT_URL") // direct connection (port 5432) — used for migrations only
 }
 
-// SQLite has no native enum support in Prisma — these are enforced at the
-// application boundary via Zod (see lib/types.ts). Allowed values documented
-// inline for anyone reading the schema directly.
+// Enums are intentionally NOT used here even though Postgres supports them —
+// this schema started on SQLite (no enum support) and stayed plain-string by
+// design, enforced at the application boundary via Zod (see lib/types.ts).
+// Allowed values are documented inline for anyone reading the schema directly.
 
 model JobDescription {
   id                 String   @id @default(cuid())
@@ -51,13 +53,30 @@ model HiringCriterion {
   @@index([role, version])
 }
 
+// A derived cache of analyzeHistoricalHires() output — recomputed whenever
+// the seed script runs, read at request time by scoring/dashboard code.
+// Stored in the DB (not a local JSON file) specifically so this works on a
+// serverless deploy, where each invocation gets its own ephemeral,
+// non-shared filesystem.
+model HistoricalSignal {
+  id                         String   @id @default(cuid())
+  name                       String
+  description                String
+  evidenceFromHistoricalData String // JSON string[]
+  confidence                 String // high | medium | low | insufficient
+  sourceCandidates           String // JSON string[] of historical hire ids
+  roleRelevance              String // "PM" | "SPM" | "both"
+  createdAt                  DateTime @default(now())
+}
+
 model Candidate {
   id               String   @id
   name             String?
   email            String?
   phone            String?
   appliedRole      String? // "PM" | "SPM" | null (not yet assigned by founder)
-  resumeFile       String
+  resumeFile       String // original filename, for display — not necessarily a local path
+  resumeUrl        String? // set when STORAGE_PROVIDER=vercel-blob; null means "read resumeFile from local disk" (dev only)
   resumeText       String
   parsedProfile    String // JSON: full extracted structured profile (may include name/email)
   sanitizedProfile String // JSON: PII-stripped profile used for AI scoring

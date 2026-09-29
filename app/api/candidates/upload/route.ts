@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile, access } from "fs/promises";
+import { access } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/db/client";
-import { parseDocumentToText, SUPPORTED_RESUME_EXTENSIONS } from "@/lib/parsers/document";
+import { parseBufferToText, SUPPORTED_RESUME_EXTENSIONS } from "@/lib/parsers/document";
 import { extractCandidateProfile, extractResumeBullets } from "@/lib/parsers/candidate";
 import { buildSanitizedProfile } from "@/lib/scoring/sanitize";
 import { detectSharedEmail, combineNotes } from "@/lib/parsers/duplicate-email";
 import { evaluateAndBriefCandidate } from "@/lib/scoring/pipeline";
 import { recordAudit, AUDIT_EVENTS } from "@/lib/db/audit";
+import { saveResumeFile } from "@/lib/storage/files";
 import type { RoleT } from "@/lib/types";
 
 const APPLICATIONS_DIR = path.join(process.cwd(), "data", "applications");
@@ -39,8 +40,11 @@ async function uniqueStoredFileName(originalName: string): Promise<{ storedFileN
   let n = 1;
   // Guards against two different uploads slugifying to the same name, and
   // against re-uploading the same file (which should still get a fresh id
-  // rather than silently overwriting someone else's earlier upload).
-  while ((await pathExists(path.join(APPLICATIONS_DIR, candidate))) || (await prisma.candidate.findUnique({ where: { id } }))) {
+  // rather than silently overwriting someone else's earlier upload). The
+  // local-disk existence check is skipped in blob mode (no local dir to
+  // check against) — the DB id check alone is still sufficient there.
+  const checkDisk = process.env.STORAGE_PROVIDER !== "vercel-blob";
+  while ((checkDisk && (await pathExists(path.join(APPLICATIONS_DIR, candidate)))) || (await prisma.candidate.findUnique({ where: { id } }))) {
     n += 1;
     candidate = `${base}-${n}${ext}`;
     id = `${base}-${n}`;
@@ -87,16 +91,16 @@ export async function POST(req: NextRequest) {
     try {
       const { storedFileName, id } = await uniqueStoredFileName(file.name);
       const buffer = Buffer.from(await file.arrayBuffer());
-      const destPath = path.join(APPLICATIONS_DIR, storedFileName);
-      await writeFile(destPath, buffer);
+      const doc = await parseBufferToText(buffer, ext);
+      const saved = await saveResumeFile(storedFileName, buffer);
 
-      const doc = await parseDocumentToText(destPath);
       if (doc.status === "FAILED") {
         await prisma.candidate.create({
           data: {
             id,
             appliedRole: null,
-            resumeFile: storedFileName,
+            resumeFile: saved.displayName,
+            resumeUrl: saved.url,
             resumeText: "",
             parsedProfile: "{}",
             sanitizedProfile: "{}",
@@ -121,7 +125,8 @@ export async function POST(req: NextRequest) {
           email: profile.email,
           phone: profile.phone,
           appliedRole: role,
-          resumeFile: storedFileName,
+          resumeFile: saved.displayName,
+          resumeUrl: saved.url,
           resumeText: doc.text,
           parsedProfile: JSON.stringify(profile),
           sanitizedProfile: JSON.stringify(sanitized),

@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { mkdirSync, statSync, writeFileSync } from "fs";
+import os from "os";
 import path from "path";
+import { EMBEDDED_DEMO_DB_BASE64 } from "@/lib/db/embedded-demo-db";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -18,12 +20,17 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 function resolveDatabaseUrl(): string | undefined {
   if (process.env.DATABASE_MODE !== "embedded-demo") return undefined;
 
-  const dest = process.platform === "win32" ? path.join(require("os").tmpdir(), "demo.db") : "/tmp/demo.db";
-  if (!existsSync(dest)) {
-    mkdirSync(path.dirname(dest), { recursive: true });
-    const { EMBEDDED_DEMO_DB_BASE64 } = require("@/lib/db/embedded-demo-db");
-    writeFileSync(dest, Buffer.from(EMBEDDED_DEMO_DB_BASE64, "base64"));
+  const dest = path.join(os.tmpdir(), "demo.db");
+  if (!EMBEDDED_DEMO_DB_BASE64) {
+    throw new Error("DATABASE_MODE=embedded-demo but EMBEDDED_DEMO_DB_BASE64 is empty — embedded demo DB module failed to load");
   }
+  mkdirSync(path.dirname(dest), { recursive: true });
+  writeFileSync(dest, Buffer.from(EMBEDDED_DEMO_DB_BASE64, "base64"));
+  const bytes = statSync(dest).size;
+  if (bytes < 1000) {
+    throw new Error(`Materialized demo DB at ${dest} is suspiciously small (${bytes} bytes) — write likely failed`);
+  }
+  console.log(`[embedded-demo-db] materialized ${bytes} bytes at ${dest}`);
   return `file:${dest}`;
 }
 

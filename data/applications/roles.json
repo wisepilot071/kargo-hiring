@@ -1,0 +1,4 @@
+{
+  "_readme": "Maps a seeded application filename to the role it applied for. Only assign a role here when the source resume genuinely evidences it — the seed script will NOT guess a role for a candidate whose CV doesn't support it, per the product's no-fabrication rule. Unassigned candidates still import (name/email/resume all visible) but show 'Role not specified' in the dashboard until the founder assigns one there, which triggers scoring on demand.",
+  "cv_07_lavanya_iyer.docx": "PM"
+}

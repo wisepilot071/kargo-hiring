@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum support in Prisma — these are enforced at the
+// application boundary via Zod (see lib/types.ts). Allowed values documented
+// inline for anyone reading the schema directly.
+
+model JobDescription {
+  id                 String   @id @default(cuid())
+  role               String   @unique // "PM" | "SPM"
+  sourceFile         String
+  rawText            String
+  parsedRequirements String // JSON: RoleRequirement[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model HistoricalHire {
+  id                 String   @id
+  name               String
+  role               String // "PM" | "SPM"
+  joinedDate         String?
+  applicationSignals String // JSON string[]
+  interviewSignals   String // JSON string[]
+  outcomeRating      String // "Exceeds Expectations" | "Meets Expectations" | "Below Expectations"
+  rawText            String
+  sourceFile         String
+  createdAt          DateTime @default(now())
+}
+
+model HiringCriterion {
+  id               String   @id
+  role             String // "PM" | "SPM"
+  version          Int      @default(1) // benchmark version this criterion belongs to — see lib/scoring/versioning.ts
+  name             String
+  description      String
+  weight           Float
+  type             String // essential | important | historical | differentiating
+  jdImportance     String // high | medium | low | none
+  evidence         String // JSON: source evidence strings
+  confidence       String // high | medium | low | insufficient
+  sourceCandidates String // JSON string[] of historical hire ids that support this criterion
+  createdAt        DateTime @default(now())
+
+  @@index([role, version])
+}
+
+model Candidate {
+  id               String   @id
+  name             String?
+  email            String?
+  phone            String?
+  appliedRole      String? // "PM" | "SPM" | null (not yet assigned by founder)
+  resumeFile       String
+  resumeText       String
+  parsedProfile    String // JSON: full extracted structured profile (may include name/email)
+  sanitizedProfile String // JSON: PII-stripped profile used for AI scoring
+  parseStatus      String   @default("OK") // OK | FAILED | PARTIAL
+  parseNotes       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  evaluation       CandidateEvaluation?
+  interviewBrief   InterviewBrief?
+  founderDecisions FounderDecision[]
+  emailDrafts      EmailDraft[]
+  auditEvents      AuditEvent[]
+}
+
+model CandidateEvaluation {
+  id                String    @id @default(cuid())
+  candidateId       String    @unique
+  candidate         Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  role              String // "PM" | "SPM"
+  benchmarkVersion  Int      @default(1) // which HiringCriterion.version this evaluation was scored against; default(1) only backfills pre-existing rows — code always sets this explicitly
+  overallScore      Int
+  confidence        String // high | medium | low | insufficient
+  recommendation    String // strong_review | review | hold | insufficient_evidence
+  criterionScores   String // JSON: CriterionScore[]
+  strengths         String // JSON string[]
+  gaps              String // JSON string[]
+  historicalSignals String // JSON: HistoricalSignalMatch[]
+  reasoning         String // JSON string[] — plain-english "why surfaced" statements
+  aiProvider        String
+  createdAt         DateTime  @default(now())
+}
+
+model InterviewBrief {
+  id                             String    @id @default(cuid())
+  candidateId                    String    @unique
+  candidate                      Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  snapshot                       String
+  strongestEvidence              String // JSON string[]
+  concerns                       String // JSON string[]
+  historicalSignalsMatched       String // JSON string[]
+  validationAreas                String // JSON string[]
+  questions                      String // JSON: InterviewQuestion[]
+  strongAnswerLooksLike          String // JSON string[]
+  whatWouldChangeRecommendation  String // JSON string[]
+  createdAt                      DateTime  @default(now())
+}
+
+model FounderDecision {
+  id          String    @id @default(cuid())
+  candidateId String
+  candidate   Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  decision    String // MOVE_TO_INTERVIEW | DO_NOT_MOVE_FORWARD | HOLD | NEED_MORE_INFO
+  note        String?
+  createdAt   DateTime  @default(now())
+}
+
+model EmailDraft {
+  id              String    @id @default(cuid())
+  candidateId     String
+  candidate       Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  type            String // INTERVIEW_INVITATION | REJECTION | FOLLOW_UP
+  subject         String
+  body            String
+  status          String    @default("DRAFT") // DRAFT | READY_TO_SEND | SENT | FAILED
+  provider        String    @default("mock")
+  resendMessageId String?
+  failureReason   String?
+  sentAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model AuditEvent {
+  id          String     @id @default(cuid())
+  candidateId String?
+  candidate   Candidate? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  eventType   String
+  detail      String?
+  createdAt   DateTime   @default(now())
+}

@@ -1,0 +1,23 @@
+.env
+.env*.local
+node_modules
+.next
+dist
+build
+*.db
+*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+tsconfig.tsbuildinfo
+scratch-check.ts
+
+# Real candidate resumes and derived data — never committed, public or
+# private repo. Keep the folder (and roles.json, which carries no PII)
+# so `npm run seed` still has somewhere to look; only the actual uploaded
+# files and generated caches are excluded.
+data/applications/*.pdf
+data/applications/*.docx
+data/applications/*.doc
+data/applications/*.txt
+!data/applications/roles.json
+data/generated/

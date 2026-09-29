@@ -3,9 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL") // pooled connection (pgbouncer, port 6543) — used at runtime
-  directUrl = env("DIRECT_URL") // direct connection (port 5432) — used for migrations only
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 // Enums are intentionally NOT used here even though Postgres supports them —

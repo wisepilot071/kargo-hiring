@@ -24,3 +24,8 @@ data/applications/*.txt
 data/generated/
 gh_auth_*.log
 gh_auth_pid.txt
+
+.vercel
+.env*
+vercel_login_*.log
+vercel_login_pid.txt

@@ -18,7 +18,8 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
  * instance. Set a real DATABASE_URL (Postgres) to get proper persistence.
  */
 function resolveDatabaseUrl(): string | undefined {
-  if (process.env.DATABASE_MODE !== "embedded-demo") return undefined;
+  const mode = process.env.DATABASE_MODE?.replace(/^﻿/, "").trim();
+  if (mode !== "embedded-demo") return undefined;
 
   const dest = path.join(os.tmpdir(), "demo.db");
   if (!EMBEDDED_DEMO_DB_BASE64) {

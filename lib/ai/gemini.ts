@@ -17,14 +17,11 @@ import {
 import type { AiProvider, HistoricalSignal, EmailDraftInput } from "@/lib/ai/types";
 import { parseJdRequirements } from "@/lib/parsers/jd";
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
-async function callGemini(system: string, prompt: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
-
-  const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+async function requestGemini(apiKey: string, system: string, prompt: string): Promise<Response> {
+  return fetch(`${GEMINI_URL}?key=${apiKey}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
@@ -33,6 +30,19 @@ async function callGemini(system: string, prompt: string): Promise<string> {
       generationConfig: { responseMimeType: "application/json", maxOutputTokens: 8192 },
     }),
   });
+}
+
+async function callGemini(system: string, prompt: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
+
+  let res = await requestGemini(apiKey, system, prompt);
+  // Google's own error text for a 503 here says demand spikes are "usually
+  // temporary" — worth one short retry before surfacing it as a real failure.
+  if (res.status === 503) {
+    await new Promise((r) => setTimeout(r, 1500));
+    res = await requestGemini(apiKey, system, prompt);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

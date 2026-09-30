@@ -40,9 +40,6 @@ export default async function CandidatePage({ params }: { params: { id: string }
   const historicalSignals = evaluation ? JSON.parse(evaluation.historicalSignals) : [];
   const brief = candidate.interviewBrief;
   const questions = brief ? JSON.parse(brief.questions) : [];
-  const validationAreas = brief ? JSON.parse(brief.validationAreas) : [];
-  const strongAnswers: string[] = brief ? JSON.parse(brief.strongAnswerLooksLike) : [];
-  const changeRec: string[] = brief ? JSON.parse(brief.whatWouldChangeRecommendation) : [];
   const { label: nameLabel, source: nameSource } = displayName(candidate);
 
   const latestDecision = candidate.founderDecisions[0]
@@ -116,14 +113,10 @@ export default async function CandidatePage({ params }: { params: { id: string }
 
       {!candidate.appliedRole && canAct && <RoleAssignForm candidateId={candidate.id} />}
 
-      {/* Founder actions are always available — Arjun can decide or draft an
-          email on any candidate at any time, whether or not scoring has run. */}
-      {canAct && (
-        <>
-          <DecisionPanel candidateId={candidate.id} latestDecision={latestDecision} />
-          <EmailPanel candidateId={candidate.id} drafts={drafts} hasEmail={Boolean(candidate.email)} />
-        </>
-      )}
+      {/* The founder's decision can be made at any time, whether or not
+          scoring has run. Email drafting is intentionally the last thing on
+          the page — it comes after all the evidence below, not before it. */}
+      {canAct && <DecisionPanel candidateId={candidate.id} latestDecision={latestDecision} />}
 
       {evaluation && (
         <>
@@ -253,28 +246,7 @@ export default async function CandidatePage({ params }: { params: { id: string }
         </pre>
       </Section>
 
-      {brief && (validationAreas.length > 0 || strongAnswers.length > 0 || changeRec.length > 0) && (
-        <Section title="Interview brief — additional notes">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <h4 className="text-xs font-semibold uppercase text-ink-500">What a strong answer looks like</h4>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-300">
-                {Array.from(new Set(strongAnswers)).map((s, i) => (
-                  <li key={i}>{s}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="text-xs font-semibold uppercase text-ink-500">What would change the recommendation</h4>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-ink-300">
-                {changeRec.map((s, i) => (
-                  <li key={i}>{s}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Section>
-      )}
+      {canAct && <EmailPanel candidateId={candidate.id} drafts={drafts} hasEmail={Boolean(candidate.email)} />}
     </div>
   );
 }

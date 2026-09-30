@@ -345,10 +345,16 @@ export class MockAiProvider implements AiProvider {
     // "only a single example" gap format).
     const criteriaWithGaps = evaluation.criteria.filter((c) => c.gaps.length > 0).slice(0, 4);
     const topGaps = criteriaWithGaps.length > 0 ? criteriaWithGaps.map((c) => c.gaps[0]) : evaluation.gaps.slice(0, 4);
+    // Keep the criterion name out of the question's own grammar — rubric
+    // criterion names range from short labels to full descriptive clauses,
+    // and embedding one mid-sentence ("...you demonstrated 'The rhythms a PM
+    // function needs'") reads as broken for the clause-shaped ones. Naming it
+    // as a topic instead, plus one brief reason, sidesteps that regardless of
+    // naming style.
     const questions = criteriaWithGaps.map((c) => ({
-      question: `Tell me about a specific time you demonstrated "${c.name}" — what was the situation, what did you decide, and what happened as a result?`,
+      question: `Ask about "${c.name}" — walk through one specific example: the situation, the decision, and the outcome.`,
       reason: c.gaps[0],
-      whatToValidate: `Whether the candidate can produce a concrete, specific instance of ${c.name}, not a general claim.`,
+      whatToValidate: "A concrete instance, not a general claim.",
     }));
 
     return {

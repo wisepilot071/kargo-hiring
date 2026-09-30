@@ -17,7 +17,11 @@ import {
 import type { AiProvider, HistoricalSignal, EmailDraftInput } from "@/lib/ai/types";
 import { parseJdRequirements } from "@/lib/parsers/jd";
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+// A rolling alias, not a pinned version — Google has been retiring specific
+// model names every few months (2.0 -> 2.5 -> 3.x seen during development of
+// this integration); the alias tracks their current recommended flash model
+// without needing a code change each time one is retired.
+const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 async function requestGemini(apiKey: string, system: string, prompt: string): Promise<Response> {
@@ -32,15 +36,19 @@ async function requestGemini(apiKey: string, system: string, prompt: string): Pr
   });
 }
 
+const RETRY_DELAYS_MS = [1000, 3000]; // total added latency capped well under typical serverless timeouts
+
 async function callGemini(system: string, prompt: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not set");
 
   let res = await requestGemini(apiKey, system, prompt);
   // Google's own error text for a 503 here says demand spikes are "usually
-  // temporary" — worth one short retry before surfacing it as a real failure.
-  if (res.status === 503) {
-    await new Promise((r) => setTimeout(r, 1500));
+  // temporary" — worth a couple of short retries before surfacing it as a
+  // real failure.
+  for (const delay of RETRY_DELAYS_MS) {
+    if (res.status !== 503) break;
+    await new Promise((r) => setTimeout(r, delay));
     res = await requestGemini(apiKey, system, prompt);
   }
 

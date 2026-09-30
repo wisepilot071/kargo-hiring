@@ -16,6 +16,17 @@ export async function POST(_req: NextRequest, { params }: { params: { emailId: s
     return NextResponse.json({ error: "This email has already been sent." }, { status: 400 });
   }
 
+  // Atomically claim the draft before actually sending — a plain read-then-write
+  // here would let two concurrent POSTs (double-click, retry, two open tabs) both
+  // pass the status check and both dispatch the same email through Resend.
+  const claim = await prisma.emailDraft.updateMany({
+    where: { id: params.emailId, status: { in: ["DRAFT", "FAILED"] } },
+    data: { status: "SENDING" },
+  });
+  if (claim.count === 0) {
+    return NextResponse.json({ error: "This email is already being sent or was just sent." }, { status: 409 });
+  }
+
   const result = await sendCandidateEmail({
     candidateId: draft.candidateId,
     emailType: draft.type,

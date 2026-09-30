@@ -5,6 +5,7 @@ import { RoleSchema } from "@/lib/types";
 import { buildSanitizedProfile } from "@/lib/scoring/sanitize";
 import { extractCandidateProfile, extractResumeBullets } from "@/lib/parsers/candidate";
 import { evaluateAndBriefCandidate } from "@/lib/scoring/pipeline";
+import { detectSharedEmail } from "@/lib/parsers/duplicate-email";
 import { recordAudit, AUDIT_EVENTS } from "@/lib/db/audit";
 
 const BodySchema = z.object({ role: RoleSchema });
@@ -32,9 +33,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const bullets = extractResumeBullets(candidate.resumeText);
   const sanitized = buildSanitizedProfile(profile, parsed.data.role, bullets);
 
+  // Re-check for a shared/placeholder email rather than blindly clearing parseNotes —
+  // this is exactly the moment the candidate becomes emailable (drafting requires
+  // appliedRole), so a shared-email warning must never be silently dropped here.
+  const sharedEmailWarning = await detectSharedEmail(candidate.email, params.id);
+
   await prisma.candidate.update({
     where: { id: params.id },
-    data: { appliedRole: parsed.data.role, sanitizedProfile: JSON.stringify(sanitized), parseNotes: null },
+    data: { appliedRole: parsed.data.role, sanitizedProfile: JSON.stringify(sanitized), parseNotes: sharedEmailWarning },
   });
 
   try {

@@ -141,7 +141,7 @@ model EmailDraft {
   type            String // INTERVIEW_INVITATION | REJECTION | FOLLOW_UP
   subject         String
   body            String
-  status          String    @default("DRAFT") // DRAFT | READY_TO_SEND | SENT | FAILED
+  status          String    @default("DRAFT") // DRAFT | READY_TO_SEND | SENDING | SENT | FAILED
   provider        String    @default("mock")
   resendMessageId String?
   failureReason   String?

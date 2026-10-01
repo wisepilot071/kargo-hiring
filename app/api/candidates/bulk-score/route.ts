@@ -23,7 +23,7 @@ export const maxDuration = 60;
 // testing: roughly several seconds per candidate, dominated by sequential
 // round-trips to the database) — the caller loops over multiple requests
 // for a larger batch rather than one request gambling on finishing in time.
-const BATCH_SIZE = 1;
+const BATCH_SIZE = 3;
 
 export async function POST() {
   const totalUnassigned = await prisma.candidate.count({ where: { appliedRole: null, parseStatus: "OK" } });

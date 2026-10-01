@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/client";
 import { RoleSchema } from "@/lib/types";
-import { buildSanitizedProfile } from "@/lib/scoring/sanitize";
-import { extractCandidateProfile, extractResumeBullets } from "@/lib/parsers/candidate";
-import { evaluateAndBriefCandidate } from "@/lib/scoring/pipeline";
-import { detectSharedEmail } from "@/lib/parsers/duplicate-email";
-import { recordAudit, AUDIT_EVENTS } from "@/lib/db/audit";
+import { assignRoleAndEvaluate } from "@/lib/scoring/assign-role";
+import { recordAudit } from "@/lib/db/audit";
 
 const BodySchema = z.object({ role: RoleSchema });
 
@@ -28,23 +25,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     );
   }
 
-  // Re-sanitize against the newly assigned role (sanitizedProfile.appliedRole matters for scoring context).
-  const profile = extractCandidateProfile(candidate.resumeText);
-  const bullets = extractResumeBullets(candidate.resumeText);
-  const sanitized = buildSanitizedProfile(profile, parsed.data.role, bullets);
-
-  // Re-check for a shared/placeholder email rather than blindly clearing parseNotes —
-  // this is exactly the moment the candidate becomes emailable (drafting requires
-  // appliedRole), so a shared-email warning must never be silently dropped here.
-  const sharedEmailWarning = await detectSharedEmail(candidate.email, params.id);
-
-  await prisma.candidate.update({
-    where: { id: params.id },
-    data: { appliedRole: parsed.data.role, sanitizedProfile: JSON.stringify(sanitized), parseNotes: sharedEmailWarning },
-  });
-
   try {
-    await evaluateAndBriefCandidate(params.id);
+    await assignRoleAndEvaluate(params.id, parsed.data.role);
   } catch (err) {
     await recordAudit(params.id, "EVALUATION_FAILED", err instanceof Error ? err.message : "Unknown error");
     return NextResponse.json(

@@ -279,7 +279,7 @@ export class MockAiProvider implements AiProvider {
     let recommendation: CandidateEvaluationResult["recommendation"];
     if (confidence === "insufficient") recommendation = "insufficient_evidence";
     else if (overallScore >= 70) recommendation = "strong_review";
-    else if (overallScore >= 50) recommendation = "review";
+    else if (overallScore >= 30) recommendation = "review";
     else recommendation = "hold";
 
     const strengths = criteriaScores

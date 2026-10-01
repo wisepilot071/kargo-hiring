@@ -3,6 +3,7 @@ import { getDashboardData } from "@/lib/dashboard";
 import { Badge, recommendationTone } from "@/components/Badge";
 import { UploadPanel } from "@/components/UploadPanel";
 import { QuickDecisionButtons } from "@/components/QuickDecisionButtons";
+import { ScoreAllButton } from "@/components/ScoreAllButton";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +110,7 @@ function EmailCell({ id, status }: { id: string; status: "none" | "awaiting_send
 export default async function DashboardPage({ searchParams }: { searchParams: { role?: string } }) {
   const role = searchParams.role === "PM" || searchParams.role === "SPM" ? searchParams.role : "ALL";
   const { rows, summary } = await getDashboardData(role);
+  const unassignedCount = rows.filter((r) => !r.appliedRole && r.suggestedRole).length;
 
   return (
     <div className="space-y-8">
@@ -136,6 +138,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
 
       <div className="flex items-center justify-between">
         <RoleFilterTabs active={role} />
+        <ScoreAllButton count={unassignedCount} />
       </div>
 
       <div className="card overflow-hidden">
